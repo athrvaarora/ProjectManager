@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOrgMember(orgId) {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
+    }
+    
+    function isOrgAdmin(orgId) {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
+    }
+
+    function isOrgCreator(orgId) {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.createdBy == request.auth.uid;
+    }
+
+    function isProjectMember(projectId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/projectMembers/$(projectId)/members/$(request.auth.uid));
+    }
+
+    function canManageWorkflow(orgId) {
+      return isSignedIn() && 
+        (isOrgAdmin(orgId) || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['manager', 'tech_lead']);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || 
+        resource.data.organizationId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId);
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId || 
+        (isOrgAdmin(resource.data.organizationId) && request.resource.data.organizationId == resource.data.organizationId);
+      allow delete: if isOrgAdmin(resource.data.organizationId);
+    }
+
+    // Organizations collection
+    match /organizations/{orgId} {
+      allow read: if isSignedIn() && (isOrgMember(orgId) || request.auth.uid == resource.data.createdBy);
+      allow create: if isSignedIn();
+      allow update: if isOrgAdmin(orgId) || isOrgCreator(orgId);
+      allow delete: if isOrgCreator(orgId);
+
+      // Organization members subcollection
+      match /members/{memberId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgAdmin(orgId) || isOrgCreator(orgId);
+      }
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if isOrgMember(resource.data.organizationId);
+      allow create: if isOrgAdmin(request.resource.data.organizationId);
+      allow update: if isOrgAdmin(resource.data.organizationId);
+      allow delete: if isOrgAdmin(resource.data.organizationId);
+
+      // Project members subcollection
+      match /members/{memberId} {
+        allow read: if isOrgMember(get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId);
+        allow write: if isOrgAdmin(get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId);
+      }
+    }
+
+    // Workflows collection
+    match /workflows/{workflowId} {
+      allow read: if isOrgMember(resource.data.organizationId);
+      allow create: if isOrgAdmin(request.resource.data.organizationId);
+      allow update: if isOrgAdmin(resource.data.organizationId);
+      allow delete: if isOrgAdmin(resource.data.organizationId);
+
+      // Workflow steps subcollection
+      match /steps/{stepId} {
+        allow read: if isOrgMember(get(/databases/$(database)/documents/workflows/$(workflowId)).data.organizationId);
+        allow write: if isOrgAdmin(get(/databases/$(database)/documents/workflows/$(workflowId)).data.organizationId);
+      }
+    }
+
+    // Project requirements collection
+    match /projectRequirements/{reqId} {
+      allow read: if isOrgMember(resource.data.organizationId);
+      allow create: if isOrgAdmin(request.resource.data.organizationId);
+      allow update: if isOrgAdmin(resource.data.organizationId);
+      allow delete: if isOrgAdmin(resource.data.organizationId);
+    }
+
+    // Project setup forms collection
+    match /projectForms/{formId} {
+      allow read: if isOrgMember(resource.data.organizationId);
+      allow create: if isOrgAdmin(request.resource.data.organizationId);
+      allow update: if canManageWorkflow(resource.data.organizationId);
+      allow delete: if isOrgAdmin(resource.data.organizationId);
+
+      // Form sections subcollection
+      match /sections/{sectionId} {
+        allow read: if isOrgMember(get(/databases/$(database)/documents/projectForms/$(formId)).data.organizationId);
+        allow write: if canManageWorkflow(get(/databases/$(database)/documents/projectForms/$(formId)).data.organizationId);
+      }
+    }
+
+    // Project milestones collection
+    match /milestones/{milestoneId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create, update: if canManageWorkflow(resource.data.organizationId);
+      allow delete: if isOrgAdmin(resource.data.organizationId);
+    }
+
+    // Tasks collection
+    match /tasks/{taskId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if canManageWorkflow(request.resource.data.organizationId);
+      allow update: if isProjectMember(resource.data.projectId) &&
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progress', 'comments']) ||
+        canManageWorkflow(resource.data.organizationId));
+      allow delete: if canManageWorkflow(resource.data.organizationId);
+    }
+  }
+} 

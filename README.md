@@ -1,46 +1,101 @@
-# Getting Started with Create React App
+# Workflow Management System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive project management application that helps teams set up projects, generate detailed descriptions, and create automated workflows.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- **Project Setup**: Guided form to capture all project requirements
+- **AI-Powered Description Generation**: Automatically generate detailed project descriptions using OpenAI
+- **Workflow Generation**: Create comprehensive project workflows with tasks and timelines
+- **Team Management**: Assign tasks to team members and track progress
+- **Organization Structure**: Manage your organization's structure and team hierarchy
 
-### `npm start`
+## Tech Stack
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- React 18
+- TypeScript
+- Material UI
+- Firebase (Authentication, Firestore)
+- OpenAI API
+- React Router
+- React Hook Form
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Getting Started
 
-### `npm test`
+### Prerequisites
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- Node.js (v14 or higher)
+- npm or yarn
+- Firebase account
+- OpenAI API key
 
-### `npm run build`
+### Installation
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/workflow.git
+   cd workflow
+   ```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+3. Create a `.env` file based on `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
 
-### `npm run eject`
+4. Fill in your environment variables in the `.env` file.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+5. Start the development server:
+   ```bash
+   npm start
+   # or
+   yarn start
+   ```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Project Structure
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+- `src/phases/phase1-auth`: Authentication and user management
+- `src/phases/phase2-org-chart`: Organization structure management
+- `src/phases/phase3-project-setup`: Project setup and workflow generation
+  - `components`: React components for the project setup
+  - `services`: API and service functions
+  - `types`: TypeScript type definitions
+  - `utils`: Utility functions
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## Deployment
 
-## Learn More
+1. Build the project:
+   ```bash
+   npm run build
+   # or
+   yarn build
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+2. Deploy to Firebase:
+   ```bash
+   firebase deploy
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- OpenAI for providing the AI capabilities
+- Firebase for the backend infrastructure
+- Material UI for the component library

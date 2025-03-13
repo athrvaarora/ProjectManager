@@ -1,25 +1,25 @@
 import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { BrowserRouter as Router } from 'react-router-dom';
+import { AuthProvider } from './phases/phase1-auth/contexts/AuthContext';
+import AppRoutes from './routes';
+import { ThemeProvider, createTheme } from '@mui/material';
+import { CircularProgress } from '@mui/material';
+
+const theme = createTheme({
+  // Add any theme customization here
+});
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AuthProvider>
+      <ThemeProvider theme={theme}>
+        <Router>
+          <React.Suspense fallback={<CircularProgress />}>
+            <AppRoutes />
+          </React.Suspense>
+        </Router>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

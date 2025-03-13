@@ -1,0 +1,10 @@
+export { ProjectSetupForm } from './ProjectSetupForm';
+export { BasicInfoSection } from './BasicInfoSection';
+export { ContactsSection } from './ContactsSection';
+export { TechnicalRequirementsSection } from './TechnicalRequirementsSection';
+export { DeploymentSection } from './DeploymentSection';
+export { TimelineSection } from './TimelineSection';
+export { ScopeSection } from './ScopeSection';
+export { QualitySection } from './QualitySection';
+export { TeamSection } from './TeamSection';
+export { RiskSection } from './RiskSection'; 
