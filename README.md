@@ -1,94 +1,80 @@
-# Workflow Management System
+# Project Manager
 
-A comprehensive project management application that helps teams set up projects, generate detailed descriptions, and create automated workflows.
+A comprehensive project management tool that helps teams organize their workflow, create organization charts, and manage project setup efficiently.
 
 ## Features
 
-- **Project Setup**: Guided form to capture all project requirements
-- **AI-Powered Description Generation**: Automatically generate detailed project descriptions using OpenAI
-- **Workflow Generation**: Create comprehensive project workflows with tasks and timelines
-- **Team Management**: Assign tasks to team members and track progress
-- **Organization Structure**: Manage your organization's structure and team hierarchy
+- Organization Chart Builder
+- Project Setup Wizard
+- Team Member Invitations via Email
+- AI-Powered Workflow Suggestions
+- Real-time Collaboration
 
-## Tech Stack
-
-- React 18
-- TypeScript
-- Material UI
-- Firebase (Authentication, Firestore)
-- OpenAI API
-- React Router
-- React Hook Form
-
-## Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - Node.js (v14 or higher)
 - npm or yarn
 - Firebase account
-- OpenAI API key
+- SendGrid account (for email functionality)
+- OpenAI API key (for AI features)
 
-### Installation
+## Setup Instructions
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/workflow.git
-   cd workflow
+   git clone https://github.com/athrvaarora/ProjectManager.git
+   cd ProjectManager
    ```
 
 2. Install dependencies:
    ```bash
    npm install
-   # or
-   yarn install
    ```
 
-3. Create a `.env` file based on `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
+3. Environment Setup:
+   - Copy `.env.example` to `.env`:
+     ```bash
+     cp .env.example .env
+     ```
+   - Fill in your actual API keys and configuration values in `.env`
 
-4. Fill in your environment variables in the `.env` file.
+4. Firebase Setup:
+   - Create a new Firebase project
+   - Enable Authentication and Firestore
+   - Set up Firebase Functions for email functionality
+   - Update Firebase configuration in `.env`
 
 5. Start the development server:
    ```bash
    npm start
-   # or
-   yarn start
    ```
 
-## Project Structure
+## Security Notes
 
-- `src/phases/phase1-auth`: Authentication and user management
-- `src/phases/phase2-org-chart`: Organization structure management
-- `src/phases/phase3-project-setup`: Project setup and workflow generation
-  - `components`: React components for the project setup
-  - `services`: API and service functions
-  - `types`: TypeScript type definitions
-  - `utils`: Utility functions
+- Never commit `.env` files containing actual API keys
+- Use environment variables for all sensitive information
+- Keep API keys and secrets secure
+- Follow the principle of least privilege for API keys
 
-## Deployment
+## Development Guidelines
 
-1. Build the project:
-   ```bash
-   npm run build
-   # or
-   yarn build
-   ```
+1. Branch naming convention:
+   - feature/feature-name
+   - bugfix/bug-description
+   - hotfix/issue-description
 
-2. Deploy to Firebase:
-   ```bash
-   firebase deploy
-   ```
+2. Commit messages:
+   - Use clear, descriptive commit messages
+   - Start with a verb (add, fix, update, etc.)
+   - Keep messages concise but informative
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
