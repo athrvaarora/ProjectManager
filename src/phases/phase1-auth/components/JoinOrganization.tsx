@@ -17,22 +17,28 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
+import { isValidOrganizationCode } from '../../phase2-org-chart/utils/codeGenerator';
 
 export const JoinOrganization: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const theme = useTheme();
-  const [inviteCode, setInviteCode] = useState('');
+  const [organizationCode, setOrganizationCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const handleJoinOrganization = async () => {
-    if (!inviteCode.trim()) {
-      setError('Please enter an invite code');
+    if (!organizationCode.trim()) {
+      setError('Please enter an organization code');
+      return;
+    }
+
+    if (!isValidOrganizationCode(organizationCode)) {
+      setError('Invalid organization code format');
       return;
     }
 
@@ -40,32 +46,78 @@ export const JoinOrganization: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // In a real implementation, you would verify the invite code against a backend
-      // For now, we'll just simulate verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // For demo purposes, any 6-character code is accepted
-      if (inviteCode.length >= 6) {
-        // Update user document to indicate they've joined an organization
-        if (user) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            hasOrganization: true,
-            isCreator: false,
-            isFirstLogin: false,
-            organizationCode: inviteCode,
-            role: 'member'
-          });
-        }
-        setIsSuccess(true);
-        
-        // Navigate to dashboard after a short delay
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
-      } else {
-        setError('Invalid invite code. Please enter a valid code.');
+      // Look up the organization code in the organizationCodes collection
+      const orgCodeRef = doc(db, 'organizationCodes', organizationCode);
+      const orgCodeSnap = await getDoc(orgCodeRef);
+
+      if (!orgCodeSnap.exists()) {
+        setError('Invalid organization code. Please check and try again.');
+        setIsLoading(false);
+        return;
       }
+
+      const orgData = orgCodeSnap.data();
+      const organizationId = orgData.organizationId;
+
+      // Verify the organization exists
+      const orgRef = doc(db, 'organizations', organizationId);
+      const orgSnap = await getDoc(orgRef);
+
+      if (!orgSnap.exists()) {
+        setError('Organization not found. Please contact your administrator.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if the user's email is in the invites for this organization
+      const invitesQuery = query(
+        collection(db, 'invites'),
+        where('organizationId', '==', organizationId),
+        where('email', '==', user?.email),
+        where('status', '==', 'pending')
+      );
+
+      const invitesSnap = await getDocs(invitesQuery);
+
+      if (invitesSnap.empty) {
+        setError('No pending invitation found for your email in this organization.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update user document to indicate they've joined an organization
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          hasOrganization: true,
+          isCreator: false,
+          isFirstLogin: false,
+          organizationId: organizationId,
+          organizationCode: organizationCode,
+          role: 'member',
+          organizationRole: 'member',
+          updatedAt: new Date()
+        });
+
+        // Update all the user's pending invites for this organization to 'accepted'
+        const batch = writeBatch(db);
+        invitesSnap.forEach((inviteDoc) => {
+          batch.update(inviteDoc.ref, {
+            status: 'accepted',
+            acceptedAt: new Date(),
+            acceptedBy: user.uid
+          });
+        });
+        await batch.commit();
+      }
+
+      setIsSuccess(true);
+      
+      // Navigate to dashboard after a short delay
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
     } catch (err) {
+      console.error('Error joining organization:', err);
       setError(err instanceof Error ? err.message : 'Failed to join organization');
     } finally {
       setIsLoading(false);
@@ -125,7 +177,7 @@ export const JoinOrganization: React.FC = () => {
               Join an Organization
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: '450px', mx: 'auto' }}>
-              Enter the invitation code you received from your organization administrator to join the workspace.
+              Enter the organization code you received from your organization administrator to join the workspace.
             </Typography>
           </Box>
 
@@ -152,11 +204,11 @@ export const JoinOrganization: React.FC = () => {
             <>
               <TextField
                 fullWidth
-                label="Invitation Code"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                label="Organization Code"
+                value={organizationCode}
+                onChange={(e) => setOrganizationCode(e.target.value.toUpperCase())}
                 margin="normal"
-                placeholder="Enter your invitation code"
+                placeholder="Enter your organization code"
                 variant="outlined"
                 autoFocus
                 InputProps={{
@@ -180,7 +232,7 @@ export const JoinOrganization: React.FC = () => {
                 color="secondary"
                 size="large"
                 onClick={handleJoinOrganization}
-                disabled={isLoading || !inviteCode.trim()}
+                disabled={isLoading || !organizationCode.trim()}
                 sx={{
                   py: 1.5,
                   borderRadius: 2,

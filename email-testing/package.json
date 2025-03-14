@@ -1,0 +1,27 @@
+{
+  "name": "email-testing-tools",
+  "version": "1.0.0",
+  "description": "Tools for testing email functionality in the Workflow application",
+  "main": "index.js",
+  "scripts": {
+    "verify-sendgrid": "node verify-sendgrid.js",
+    "test-sendgrid-template": "node test-sendgrid-template.js",
+    "test-firebase-functions": "node test-firebase-functions.js",
+    "test-email-function": "node test-email-function.js",
+    "check-sender": "node check-sender-verification.js",
+    "test-all": "npm run check-sender && npm run verify-sendgrid && npm run test-sendgrid-template && npm run test-firebase-functions"
+  },
+  "keywords": [
+    "sendgrid",
+    "firebase",
+    "email",
+    "testing"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@sendgrid/mail": "^7.7.0",
+    "axios": "^1.6.2",
+    "firebase": "^10.6.0"
+  }
+} 

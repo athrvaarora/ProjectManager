@@ -10,6 +10,7 @@ export interface OrganizationChart {
   createdBy: string;
   createdAt: Date | Timestamp | FieldValue;
   updatedAt: Date | Timestamp | FieldValue;
+  organizationCode?: string;
   metadata?: {
     version: number;
     lastModifiedBy: string;

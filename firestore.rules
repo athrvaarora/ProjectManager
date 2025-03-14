@@ -18,8 +18,13 @@ service cloud.firestore {
     }
 
     function isOrgCreator(orgId) {
-      return isSignedIn() && 
-        get(/databases/$(database)/documents/organizations/$(orgId)).data.createdBy == request.auth.uid;
+      return isSignedIn() && (
+        // Check if the document exists and user is creator
+        (exists(/databases/$(database)/documents/organizations/$(orgId)) && 
+         get(/databases/$(database)/documents/organizations/$(orgId)).data.createdBy == request.auth.uid) ||
+        // Or if the document doesn't exist yet and orgId matches user ID (new org creation)
+        (!exists(/databases/$(database)/documents/organizations/$(orgId)) && orgId == request.auth.uid)
+      );
     }
 
     function isProjectMember(projectId) {
@@ -45,8 +50,17 @@ service cloud.firestore {
     // Organizations collection
     match /organizations/{orgId} {
       allow read: if isSignedIn() && (isOrgMember(orgId) || request.auth.uid == resource.data.createdBy);
-      allow create: if isSignedIn();
-      allow update: if isOrgAdmin(orgId) || isOrgCreator(orgId);
+      // Allow create if signed in and either:
+      // 1. Creating with their own UID as the orgId, or
+      // 2. They have permission to create an org
+      allow create: if isSignedIn() && (orgId == request.auth.uid || request.resource.data.createdBy == request.auth.uid);
+      // Allow update if admin or creator
+      allow update: if isSignedIn() && (
+        isOrgAdmin(orgId) || 
+        isOrgCreator(orgId) || 
+        // Allow update if user is setting themselves as creator
+        (orgId == request.auth.uid && request.resource.data.createdBy == request.auth.uid)
+      );
       allow delete: if isOrgCreator(orgId);
 
       // Organization members subcollection
@@ -54,6 +68,17 @@ service cloud.firestore {
         allow read: if isOrgMember(orgId);
         allow write: if isOrgAdmin(orgId) || isOrgCreator(orgId);
       }
+    }
+
+    // Organization Codes collection
+    match /organizationCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn() && (
+        isOrgAdmin(resource.data.organizationId) || 
+        isOrgCreator(resource.data.organizationId)
+      );
+      allow delete: if isSignedIn() && isOrgCreator(resource.data.organizationId);
     }
 
     // Projects collection
@@ -121,6 +146,17 @@ service cloud.firestore {
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progress', 'comments']) ||
         canManageWorkflow(resource.data.organizationId));
       allow delete: if canManageWorkflow(resource.data.organizationId);
+    }
+    
+    // Invites collection
+    match /invites/{inviteCode} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.email == request.auth.email || 
+        resource.data.createdBy == request.auth.uid
+      );
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
   }
 } 

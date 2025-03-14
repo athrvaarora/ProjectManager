@@ -5,6 +5,7 @@ import { RegisterPage } from './phases/phase1-auth/components/RegisterPage';
 import { VerifyEmail } from './phases/phase1-auth/components/VerifyEmail';
 import { OrganizationSelection } from './phases/phase1-auth/components/OrganizationSelection';
 import { JoinOrganization } from './phases/phase1-auth/components/JoinOrganization';
+import { SignupInvite } from './phases/phase1-auth/components/SignupInvite';
 import { OrganizationChart } from './phases/phase2-org-chart/components/OrganizationChart';
 import { ProjectSetupForm } from './phases/phase3-project-setup/components/ProjectSetupForm/ProjectSetupForm';
 import { ProjectDescription } from './phases/phase3-project-setup/components/ProjectDescription';
@@ -19,6 +20,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/signup-invite/:inviteCode" element={<SignupInvite />} />
       <Route
         path="/organization-selection"
         element={

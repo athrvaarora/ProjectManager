@@ -40,6 +40,7 @@ import {
   Tooltip,
   CircularProgress,
   LinearProgress,
+  DialogActions,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import GroupIcon from '@mui/icons-material/Group';
@@ -54,12 +55,14 @@ import { PersonnelForm } from './forms/PersonnelForm';
 import { useAuth } from '../../phase1-auth/contexts/AuthContext';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../phase1-auth/utils/firebaseConfig';
-import { generateInviteCode } from '../utils/codeGenerator';
+import { generateInviteCode, generateOrganizationCode } from '../utils/codeGenerator';
 import { sendInviteEmail } from '../services/emailService';
 import { AnnotationNode } from './nodes/AnnotationNode';
 import { FirestoreOrganization, TeamMember, OrganizationEdge, PendingInvite } from '../types/firestore.types';
 import { IPersonData } from '../types/org-chart.types';
 import { OrganizationChart as OrgChart, saveOrganizationChart } from '../../phase1-auth/utils/organization';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import ErrorIcon from '@mui/icons-material/Error';
 
 const nodeTypes = {
   personnel: PersonnelNode,
@@ -100,6 +103,9 @@ const OrganizationChartContent: React.FC = () => {
     severity: 'success' | 'error' | 'info' | 'warning';
   }>({ text: '', severity: 'info' });
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [showInviteConfirmation, setShowInviteConfirmation] = useState(false);
+  const [invitationResults, setInvitationResults] = useState<Array<{email: string; success: boolean; error?: any} | null>>([]);
+  const [savedOrganizationCode, setSavedOrganizationCode] = useState<string>('');
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -216,6 +222,20 @@ const OrganizationChartContent: React.FC = () => {
       return;
     }
 
+    // Validate that there's at least one personnel node with an email
+    const personnelNodesWithEmail = nodes.filter(
+      node => node.type === 'personnel' && node.data?.email
+    );
+    
+    if (personnelNodesWithEmail.length === 0) {
+      setSnackbarMessage({
+        text: 'You must add at least one team member with an email address',
+        severity: 'error'
+      });
+      setSnackbarOpen(true);
+      return;
+    }
+
     try {
       setSaving(true);
       setSaveProgress({ step: 'Preparing data...', progress: 10 });
@@ -265,6 +285,11 @@ const OrganizationChartContent: React.FC = () => {
         style: edge.style || {}
       }));
 
+      // Generate a unique organization code for this organization
+      // This code will be shared by all members of the organization
+      const organizationCode = generateOrganizationCode();
+      setSavedOrganizationCode(organizationCode);
+
       const timestamp = serverTimestamp();
       const chartData: Partial<OrgChart> = {
         id: chartId,
@@ -274,6 +299,7 @@ const OrganizationChartContent: React.FC = () => {
         createdBy: user.uid,
         createdAt: timestamp,
         updatedAt: timestamp,
+        organizationCode: organizationCode, // Add the organization code to the chart data
         metadata: {
           version: 1,
           lastModifiedBy: user.uid
@@ -289,7 +315,7 @@ const OrganizationChartContent: React.FC = () => {
       // Send invites to team members
       const personnelNodes = cleanNodes.filter(node => node.type === 'personnel');
       const invitePromises = personnelNodes.map(async (node) => {
-        if (node.data.email && node.data.email !== user.email) {
+        if (node.data.email) {
           try {
             const inviteCode = generateInviteCode();
             
@@ -298,14 +324,16 @@ const OrganizationChartContent: React.FC = () => {
             await setDoc(inviteRef, {
               email: node.data.email,
               organizationId: user.organizationId || user.uid,
+              organizationCode: organizationCode, // Add the organization code to the invite
               createdBy: user.uid,
               createdAt: timestamp,
               expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
               status: 'pending'
             });
             
-            // Send email invitation
-            await sendInviteEmail(node.data.email, inviteCode, chartName);
+            // Send email invitation with the organization code using Firebase Cloud Functions
+            console.log(`Sending invitation to ${node.data.email} with code ${inviteCode}`);
+            await sendInviteEmail(node.data.email, inviteCode, chartName, organizationCode);
             
             return { email: node.data.email, success: true };
           } catch (err) {
@@ -317,13 +345,46 @@ const OrganizationChartContent: React.FC = () => {
       }).filter(Boolean);
       
       // Wait for all invites to be sent
-      await Promise.all(invitePromises);
+      try {
+        console.log(`Sending ${invitePromises.length} invitations...`);
+        const inviteResults = await Promise.all(invitePromises);
+        console.log('Invitation results:', inviteResults);
+        
+        // Store invitation results for display in confirmation dialog
+        setInvitationResults(inviteResults);
+        
+        // Check if any invitations failed
+        const failedInvites = inviteResults.filter(result => result && !result.success);
+        if (failedInvites.length > 0) {
+          console.warn(`${failedInvites.length} invitations failed to send:`, failedInvites);
+          
+          setSnackbarMessage({
+            text: `Organization chart saved, but ${failedInvites.length} invitations failed to send. Check console for details.`,
+            severity: 'warning'
+          });
+          setSnackbarOpen(true);
+        }
+        
+        // Show invitation confirmation dialog
+        setShowInviteConfirmation(true);
+      } catch (error) {
+        console.error('Error sending invitations:', error);
+        setSnackbarMessage({
+          text: 'Organization chart saved, but there was an error sending invitations. Check console for details.',
+          severity: 'warning'
+        });
+        setSnackbarOpen(true);
+        
+        // Still show the confirmation dialog so the user can continue
+        setShowInviteConfirmation(true);
+      }
       
       setSaveProgress({ step: 'Updating user status...', progress: 90 });
       // Update user's organization status if needed
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         organizationId: user.organizationId || user.uid,
+        organizationCode: organizationCode, // Add the organization code to the user's data
         hasOrganization: true,
         role: 'admin',
         organizationRole: 'creator',
@@ -335,6 +396,16 @@ const OrganizationChartContent: React.FC = () => {
         }
       });
 
+      // Save the organization code in a separate collection for easy lookup
+      const orgCodeRef = doc(db, 'organizationCodes', organizationCode);
+      await setDoc(orgCodeRef, {
+        organizationId: user.organizationId || user.uid,
+        organizationName: chartName || 'Untitled Organization',
+        createdBy: user.uid,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      });
+
       setSaveProgress({ step: 'Complete', progress: 100 });
       setSnackbarMessage({
         text: 'Organization chart saved successfully',
@@ -342,10 +413,11 @@ const OrganizationChartContent: React.FC = () => {
       });
       setSnackbarOpen(true);
       
-      // Navigate to project setup after successful save
-      setTimeout(() => {
-        navigate('/project-setup');
-      }, 1500);
+      // Set a flag to indicate that we've saved the chart
+      setIsSaved(true);
+      
+      // Don't navigate automatically - let the user close the confirmation dialog
+      // The navigation will happen when they close the dialog
     } catch (error) {
       console.error('Error saving organization chart:', error);
       setSnackbarMessage({
@@ -654,6 +726,93 @@ const OrganizationChartContent: React.FC = () => {
           {error || snackbarMessage.text}
         </Alert>
       </Snackbar>
+
+      {/* Invitation Confirmation Dialog */}
+      <Dialog
+        open={showInviteConfirmation}
+        onClose={() => {
+          setShowInviteConfirmation(false);
+          navigate('/project-setup');
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Organization Created Successfully</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Your organization "{chartName}" has been created!
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              Organization Code: <strong>{savedOrganizationCode}</strong>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Share this code with team members who already have accounts to join your organization.
+            </Typography>
+          </Box>
+          
+          <Divider sx={{ my: 2 }} />
+          
+          <Typography variant="h6" gutterBottom>
+            Invitation Status
+          </Typography>
+          
+          {invitationResults.length === 0 ? (
+            <Typography>No invitations were sent.</Typography>
+          ) : (
+            <Box>
+              <Typography gutterBottom>
+                Invitations have been sent to the following email addresses:
+              </Typography>
+              
+              {invitationResults.map((result, index) => (
+                result && (
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      mb: 1,
+                      color: result.success ? 'success.main' : 'error.main'
+                    }}
+                  >
+                    {result.success ? (
+                      <CheckCircleOutlineIcon sx={{ mr: 1 }} />
+                    ) : (
+                      <ErrorIcon sx={{ mr: 1 }} />
+                    )}
+                    <Typography>
+                      {result.email} - {result.success ? 'Sent successfully' : 'Failed to send'}
+                    </Typography>
+                  </Box>
+                )
+              ))}
+              
+              {invitationResults.some(result => !result?.success) && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Note:</strong> Some emails failed to send. The system will use Firebase Cloud Functions as a fallback.
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    You can also manually share the organization code with your team members: <strong>{savedOrganizationCode}</strong>
+                  </Typography>
+                </Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              setShowInviteConfirmation(false);
+              navigate('/project-setup');
+            }} 
+            variant="contained"
+          >
+            Continue to Project Setup
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
