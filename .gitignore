@@ -94,3 +94,30 @@ node_modules/
 coverage/
 build/
 dist/
+# Environment Variables
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# API Keys and Secrets
+*.pem
+*.key
+config.js
+config.json
+**/config/secrets.*
+**/secrets.*
+**/credentials.*
+serviceAccount*.json
+
+# Local development
+*.log
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+coverage/
+build/
+dist/
