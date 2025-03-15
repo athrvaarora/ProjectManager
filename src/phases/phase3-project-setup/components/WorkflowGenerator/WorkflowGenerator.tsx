@@ -19,14 +19,12 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
 } from '@mui/material';
 import { DragDropContext, Droppable, Draggable, DroppableProvided, DraggableProvided, DropResult } from 'react-beautiful-dnd';
 import { DatePicker } from '@mui/x-date-pickers';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import SendIcon from '@mui/icons-material/Send';
@@ -34,11 +32,11 @@ import { useParams } from 'react-router-dom';
 import { getProjectRequirements, updateWorkflow } from '../../services/project.service';
 import { getOrganizationChart } from '../../../phase2-org-chart/services/organization.service';
 import { generateWorkflowSteps, updateWorkflowSteps } from '../../services/workflow.service';
-import { IWorkflowStep, ProjectRequirements } from '../../types/project.types';
+import { IWorkflowStep, ProjectRequirements, IProjectSetup } from '../../types/project.types';
 
 export const WorkflowGenerator: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const [project, setProject] = useState<ProjectRequirements | null>(null);
+  const [project, setProject] = useState<IProjectSetup | ProjectRequirements | null>(null);
   const [orgChart, setOrgChart] = useState<any>(null);
   const [workflowSteps, setWorkflowSteps] = useState<IWorkflowStep[]>([]);
   const [expandedSteps, setExpandedSteps] = useState<{ [key: string]: boolean }>({});
@@ -52,8 +50,16 @@ export const WorkflowGenerator: React.FC = () => {
     const fetchData = async () => {
       if (!projectId) return;
       
+      setLoading(true);
       try {
+        // Fetch project data
         const projectData = await getProjectRequirements(projectId);
+        
+        if (!projectData) {
+          console.error('Project data not found');
+          setLoading(false);
+          return;
+        }
         
         if (!projectData.organizationId) {
           console.error('No organization ID found in project data');
@@ -61,7 +67,10 @@ export const WorkflowGenerator: React.FC = () => {
           return;
         }
         
+        // Fetch organization chart data
         const orgChartData = await getOrganizationChart(projectData.organizationId);
+        
+        // Set state
         setProject(projectData);
         setOrgChart(orgChartData);
         
@@ -88,29 +97,38 @@ export const WorkflowGenerator: React.FC = () => {
 
   // Helper function to adapt ProjectRequirements to the format expected by generateWorkflowSteps
   const generateWorkflowStepsFromRequirements = async (
-    projectData: ProjectRequirements, 
+    projectData: IProjectSetup | ProjectRequirements, 
     orgChartData: any
   ): Promise<IWorkflowStep[]> => {
+    // Check if the data is already in IProjectSetup format
+    if ('basicInfo' in projectData && 'timeline' in projectData) {
+      // It's already in IProjectSetup format, we can use it directly
+      return await generateWorkflowSteps(projectData as IProjectSetup, orgChartData);
+    }
+    
+    // Otherwise, it's in ProjectRequirements format, convert it
+    const projectReq = projectData as ProjectRequirements;
+    
     // Create a simplified project structure that matches what generateWorkflowSteps expects
     const adaptedProject = {
-      id: projectData.projectId,
-      organizationId: projectData.organizationId || '',
+      id: projectReq.projectId,
+      organizationId: projectReq.organizationId || '',
       basicInfo: {
-        title: projectData.projectTitle,
-        projectId: projectData.projectId,
-        clientCompany: projectData.clientCompany,
-        clientDivision: projectData.clientDivision,
-        summary: projectData.summary,
-        description: projectData.description,
-        objectives: projectData.objectives,
-        targetUsers: [projectData.targetUsers],
-        expectedUserVolume: projectData.expectedUserVolume.toString(),
+        title: projectReq.projectTitle,
+        projectId: projectReq.projectId,
+        clientCompany: projectReq.clientCompany,
+        clientDivision: projectReq.clientDivision,
+        summary: projectReq.summary,
+        description: projectReq.description,
+        objectives: projectReq.objectives,
+        targetUsers: [projectReq.targetUsers],
+        expectedUserVolume: projectReq.expectedUserVolume.toString(),
       },
       timeline: {
-        startDate: projectData.startDate,
-        targetCompletionDate: projectData.completionDate,
-        priorityLevel: projectData.priority,
-        milestones: Object.entries(projectData.milestones)
+        startDate: projectReq.startDate,
+        targetCompletionDate: projectReq.completionDate,
+        priorityLevel: projectReq.priority,
+        milestones: Object.entries(projectReq.milestones)
           .filter(([_, date]) => date)
           .map(([phase, date]) => ({
             phase,
@@ -122,26 +140,26 @@ export const WorkflowGenerator: React.FC = () => {
         phaseBreakdown: [],
       },
       scope: {
-        coreFeatures: projectData.coreFeatures.map(feature => ({
+        coreFeatures: projectReq.coreFeatures.map(feature => ({
           description: feature,
           priority: 'high',
           effort: 'medium',
           dependencies: [],
           acceptance: [],
         })),
-        secondaryFeatures: projectData.secondaryFeatures.map(feature => ({
+        secondaryFeatures: projectReq.secondaryFeatures.map(feature => ({
           description: feature,
           priority: 'medium',
           effort: 'medium',
           dependencies: [],
           acceptance: [],
         })),
-        outOfScope: projectData.outOfScope.map(item => ({
+        outOfScope: projectReq.outOfScope.map(item => ({
           description: item,
           reason: 'Out of current scope',
           impact: 'None',
         })),
-        futurePlans: projectData.futurePlans.map(plan => ({
+        futurePlans: projectReq.futurePlans.map(plan => ({
           description: plan,
           timeline: 'Future',
           prerequisites: [],
@@ -150,15 +168,15 @@ export const WorkflowGenerator: React.FC = () => {
         constraints: [],
       },
       technical: {
-        platform: Object.entries(projectData.platform)
+        platform: Object.entries(projectReq.platform)
           .filter(([key, value]) => value === true || (key === 'other' && value))
-          .map(([key, _]) => key === 'other' ? projectData.platform.other : key),
-        technologies: projectData.requiredTechnologies,
-        integrations: projectData.integrationRequirements,
-        designDocuments: projectData.designDocuments.join(', '),
-        technicalConstraints: projectData.technicalConstraints.join(', '),
-        infrastructureDetails: projectData.infrastructure,
-        securityRequirements: projectData.securityRequirements,
+          .map(([key, _]) => key === 'other' ? projectReq.platform.other : key),
+        technologies: projectReq.requiredTechnologies,
+        integrations: projectReq.integrationRequirements,
+        designDocuments: projectReq.designDocuments.join(', '),
+        technicalConstraints: projectReq.technicalConstraints.join(', '),
+        infrastructureDetails: projectReq.infrastructure,
+        securityRequirements: projectReq.securityRequirements,
         performanceRequirements: {
           loadCapacity: '',
           responseTime: '',
@@ -166,9 +184,9 @@ export const WorkflowGenerator: React.FC = () => {
         },
       },
       quality: {
-        testingLevels: projectData.testingLevels,
-        complianceRequirements: projectData.complianceRequirements,
-        securityRequirements: projectData.securityRequirements,
+        testingLevels: projectReq.testingLevels,
+        complianceRequirements: projectReq.complianceRequirements,
+        securityRequirements: projectReq.securityRequirements,
         performanceRequirements: {
           loadCapacity: '',
           responseTime: '',
@@ -178,37 +196,37 @@ export const WorkflowGenerator: React.FC = () => {
         qualityMetrics: [],
       },
       team: {
-        specialExpertise: projectData.specialExpertise,
-        clientInvolvement: [projectData.clientInvolvement],
-        resourceConstraints: projectData.resourceConstraintsText || '',
-        crossTeamDependencies: projectData.crossTeamDependenciesText || '',
+        specialExpertise: projectReq.specialExpertise,
+        clientInvolvement: [projectReq.clientInvolvement],
+        resourceConstraints: projectReq.resourceConstraintsText || '',
+        crossTeamDependencies: projectReq.crossTeamDependenciesText || '',
         teamStructure: '',
         communicationPlan: '',
         roles: [],
         responsibilities: [],
       },
       risks: {
-        risks: projectData.knownChallenges.map(challenge => ({
+        risks: projectReq.knownChallenges.map(challenge => ({
           description: challenge,
           level: 'medium',
           impact: 'medium',
           mitigation: '',
         })),
-        criticalDependencies: projectData.criticalDependencies.map(dependency => ({
+        criticalDependencies: projectReq.criticalDependencies.map(dependency => ({
           dependency,
           managementStrategy: '',
         })),
-        contingencyPlans: projectData.contingencyPlans,
+        contingencyPlans: projectReq.contingencyPlans,
         mitigationStrategies: [],
         riskAssessmentMatrix: [],
       },
       metadata: {
         status: 'draft',
-        createdBy: projectData.createdBy || '',
-        createdAt: projectData.createdAt || new Date(),
-        updatedAt: projectData.updatedAt || new Date(),
+        createdBy: projectReq.createdBy || '',
+        createdAt: projectReq.createdAt || new Date(),
+        updatedAt: projectReq.updatedAt || new Date(),
         version: '1.0',
-        lastModifiedBy: projectData.createdBy || '',
+        lastModifiedBy: projectReq.createdBy || '',
       },
     };
 

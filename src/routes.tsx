@@ -9,6 +9,7 @@ import { SignupInvite } from './phases/phase1-auth/components/SignupInvite';
 import { OrganizationChart } from './phases/phase2-org-chart/components/OrganizationChart';
 import { ProjectSetupForm } from './phases/phase3-project-setup/components/ProjectSetupForm/ProjectSetupForm';
 import { ProjectDescription } from './phases/phase3-project-setup/components/ProjectDescription';
+import { ProjectSummary } from './phases/phase3-project-setup/components/ProjectSummary';
 import { WorkflowGenerator } from './phases/phase3-project-setup/components/WorkflowGenerator/WorkflowGenerator';
 import { WorkflowGenerationWrapper } from './phases/phase4-workflow/components/WorkflowGenerationWrapper';
 import { Dashboard } from './phases/phase1-auth/components/Dashboard';
@@ -66,6 +67,14 @@ const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute>
             <ProjectDescription />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/project-summary/:projectId"
+        element={
+          <PrivateRoute>
+            <ProjectSummary />
           </PrivateRoute>
         }
       />

@@ -14,104 +14,90 @@ import {
   Skeleton,
   Card,
   CardContent,
-  Grid,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useAuth } from '../../phase1-auth/contexts/AuthContext';
-import { getProjectRequirements } from '../services/project.service';
+import { getProjectRequirements, saveProjectDescription, getProjectDescription } from '../services/project.service';
 import { generateProjectDescription } from '../services/openai.service';
-import { saveProjectDescription, getProjectDescription } from '../services/project.service';
 import ReactMarkdown from 'react-markdown';
-import { ProjectRequirements } from '../types/project.types';
+import { IProjectSetup } from '../types/project.types';
 
 export const ProjectDescription: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [projectData, setProjectData] = useState<ProjectRequirements | null>(null);
-  const [description, setDescription] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
+  const [projectData, setProjectData] = useState<IProjectSetup | null>(null);
+  const [description, setDescription] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const [generating, setGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProjectData = async () => {
+    const fetchData = async () => {
       if (!projectId) return;
       
+      setLoading(true);
       try {
-        setLoading(true);
-        setError(null);
+        // Fetch project requirements
+        const projectReq = await getProjectRequirements(projectId);
+        if (projectReq) {
+          setProjectData(projectReq);
+        } else {
+          setError('Project not found');
+        }
         
-        // Fetch project data
-        const data = await getProjectRequirements(projectId);
-        setProjectData(data);
-        
-        // Try to get existing description
+        // Fetch existing description if available
         const existingDescription = await getProjectDescription(projectId);
-        
         if (existingDescription) {
           setDescription(existingDescription);
-        } else {
-          // Generate new description if none exists
-          await generateAndSaveDescription(data);
         }
-      } catch (error) {
-        console.error('Error fetching project data:', error);
-        setError('Failed to load project data. Please try again.');
+      } catch (err) {
+        console.error('Error fetching project data:', err);
+        setError('Failed to load project data');
       } finally {
         setLoading(false);
       }
     };
     
-    fetchProjectData();
+    fetchData();
   }, [projectId]);
 
-  const generateAndSaveDescription = async (data: ProjectRequirements) => {
-    if (!projectId) return;
+  const generateAndSaveDescription = async (projectData: IProjectSetup) => {
+    if (!projectId || !user) return;
+    
+    setGenerating(true);
+    setError(null);
     
     try {
-      setGenerating(true);
-      setError(null);
-      
       // Generate description using OpenAI
-      const generatedDescription = await generateProjectDescription(data);
+      const generatedDescription = await generateProjectDescription(projectData);
       
       // Save the generated description
-      await saveProjectDescription(projectId, generatedDescription);
+      await saveProjectDescription(projectId, generatedDescription, user.uid);
       
       // Update state
       setDescription(generatedDescription);
-    } catch (error) {
-      console.error('Error generating description:', error);
-      setError('Failed to generate project description. Please try again.');
+    } catch (err) {
+      console.error('Error generating description:', err);
+      setError('Failed to generate project description');
     } finally {
       setGenerating(false);
     }
   };
 
-  const handleRefresh = async () => {
-    if (!projectData || !projectId) return;
-    
-    try {
-      setGenerating(true);
-      setError(null);
-      
-      // Generate new description
-      await generateAndSaveDescription(projectData);
-    } catch (error) {
-      console.error('Error refreshing description:', error);
-      setError('Failed to refresh project description. Please try again.');
-    } finally {
-      setGenerating(false);
+  const handleGenerateDescription = () => {
+    if (projectData) {
+      generateAndSaveDescription(projectData);
     }
   };
 
-  const handleGenerateWorkflow = () => {
-    if (!projectId) return;
-    navigate(`/workflow-generator/${projectId}`);
+  const handleContinue = () => {
+    if (projectId) {
+      navigate(`/project-summary/${projectId}`);
+    }
   };
 
   const renderContent = () => {
@@ -129,10 +115,10 @@ export const ProjectDescription: React.FC = () => {
         <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <CircularProgress size={60} sx={{ mb: 3 }} />
           <Typography variant="h6" color="text.secondary">
-            Generating detailed project description...
+            Generating comprehensive project description...
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            This may take a minute or two. We're analyzing your project requirements and creating a comprehensive description.
+            This may take a minute or two.
           </Typography>
         </Box>
       );
@@ -189,7 +175,7 @@ export const ProjectDescription: React.FC = () => {
               },
             }}>
               <ReactMarkdown>
-                {description}
+                {description || ''}
               </ReactMarkdown>
             </Box>
           </CardContent>
@@ -210,7 +196,7 @@ export const ProjectDescription: React.FC = () => {
           </Box>
           <Tooltip title="Regenerate description">
             <IconButton 
-              onClick={handleRefresh} 
+              onClick={handleGenerateDescription} 
               disabled={generating || loading}
               color="primary"
               sx={{ ml: 2 }}
@@ -234,11 +220,11 @@ export const ProjectDescription: React.FC = () => {
             variant="contained"
             color="primary"
             size="large"
-            onClick={handleGenerateWorkflow}
+            onClick={handleContinue}
             disabled={generating || loading || !description}
             endIcon={<ArrowForwardIcon />}
           >
-            Generate Workflow
+            Continue to Summary
           </Button>
         </Box>
       </Paper>
